@@ -1,0 +1,35 @@
+:root {
+  --bg: #0b0f14;
+  --card: #12181f;
+  --card-border: #1e2731;
+  --text: #e8edf2;
+  --text-dim: #8b97a4;
+  --text-faint: #4d5762;
+  --busy: #ff7a7a;
+  --tight: #ffb15c;
+  --ok: #cdead9;
+  --meal: #f2c879;
+  --today-bg: #0f1e18;
+  --accent-p: #6aa3f7;
+  --accent-h: #c398f5;
+  --accent-k: #f782b0;
+  --accent-z: #f7c948;
+  --accent-m: #4fd6a8;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
