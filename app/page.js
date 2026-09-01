@@ -21,8 +21,7 @@ const DAYS = [
   { key: 'sat', abbr: 'Lör', full: 'Lördag' },
   { key: 'sun', abbr: 'Sön', full: 'Söndag' },
 ];
-// Hur många minuter innan aktiviteten man behöver ge sig av. Lägg till fler
-// personer här om ni vill ha "Gå"-tider för fler än P/M/K.
+// Hur många minuter innan aktiviteten man behöver ge sig av.
 const LEAVE_MINUTES = { P: 20, M: 20, K: 15 };
 // Enkel PIN-spärr för redigeringsläget. Ändra siffrorna nedan om ni vill
 // byta kod (kräver en ny commit + deploy, ingen miljövariabel behövs).
@@ -288,290 +287,258 @@ export default function Home() {
     );
   }
 
-  // ---------- Redigeringsraden ----------
-  function renderEditorRow(colSpan, key) {
+  // ---------- Redigeringskortet ----------
+  function renderEditorCard(key) {
     const isMeal = draft.type === 'meal';
     return (
-      <tr className="editor-row" key={key}>
-        <td colSpan={colSpan}>
-          <div className="editor">
-            <div className="field">
-              <label>Typ</label>
-              <div className="pill-row">
-                <button
-                  className={`pill ${isMeal ? 'on' : ''}`}
-                  style={isMeal ? { borderColor: 'var(--meal)', color: 'var(--meal)' } : undefined}
-                  onClick={() => setDraftType('meal')}
-                >
-                  Middag
-                </button>
-                <button
-                  className={`pill ${!isMeal ? 'on' : ''}`}
-                  style={!isMeal ? { borderColor: 'var(--accent-m)', color: 'var(--accent-m)' } : undefined}
-                  onClick={() => setDraftType('activity')}
-                >
-                  Aktivitet
-                </button>
-              </div>
-            </div>
+      <div className="editor-card" key={key}>
+        <div className="field">
+          <label>Typ</label>
+          <div className="pill-row">
+            <button
+              className={`pill ${isMeal ? 'on' : ''}`}
+              style={isMeal ? { borderColor: 'var(--meal)', color: 'var(--meal)' } : undefined}
+              onClick={() => setDraftType('meal')}
+            >
+              Middag
+            </button>
+            <button
+              className={`pill ${!isMeal ? 'on' : ''}`}
+              style={!isMeal ? { borderColor: 'var(--accent-m)', color: 'var(--accent-m)' } : undefined}
+              onClick={() => setDraftType('activity')}
+            >
+              Aktivitet
+            </button>
+          </div>
+        </div>
 
-            <div className="field">
-              <label>Dag</label>
-              <select className="dsel" value={draft.day} onChange={(e) => updateDraft('day', e.target.value)}>
-                {DAYS.map((d) => (
-                  <option key={d.key} value={d.key}>
-                    {d.abbr}
-                  </option>
-                ))}
-              </select>
-            </div>
+        <div className="field">
+          <label>Dag</label>
+          <select className="dsel" value={draft.day} onChange={(e) => updateDraft('day', e.target.value)}>
+            {DAYS.map((d) => (
+              <option key={d.key} value={d.key}>
+                {d.full}
+              </option>
+            ))}
+          </select>
+        </div>
 
-            {!isMeal && (
-              <div className="field">
-                <label>Person</label>
-                <div className="pill-row">
-                  {Object.keys(PEOPLE).map((k) => {
-                    const on = draft.person === k;
-                    return (
-                      <button
-                        key={k}
-                        className={`pill ${on ? 'on' : ''}`}
-                        style={on ? { borderColor: CHIP_FG[k], color: CHIP_FG[k], background: CHIP_BG[k] } : undefined}
-                        onClick={() => updateDraft('person', k)}
-                      >
-                        {k}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            <div className="time-row">
-              <div className="field">
-                <label>Börjar</label>
-                <input
-                  type="time"
-                  value={fmtTime(draft.start_time) || ''}
-                  onChange={(e) => updateDraft('start_time', e.target.value)}
-                />
-              </div>
-              {!isMeal && (
-                <div className="field">
-                  <label>Slutar</label>
-                  <input
-                    type="time"
-                    value={fmtTime(draft.end_time) || ''}
-                    onChange={(e) => updateDraft('end_time', e.target.value)}
-                  />
-                </div>
-              )}
-            </div>
-
-            {!isMeal && (
-              <>
-                <div className="field">
-                  <label>Bilstatus</label>
-                  <div className="pill-row">
-                    {[
-                      ['ok', 'Ledigt', 'var(--ok)'],
-                      ['tight', 'Tajt', 'var(--tight)'],
-                      ['busy', 'Upptaget', 'var(--busy)'],
-                    ].map(([val, label, color]) => {
-                      const on = draft.status === val;
-                      return (
-                        <button
-                          key={val}
-                          className={`pill ${on ? 'on' : ''}`}
-                          style={on ? { borderColor: color, color } : undefined}
-                          onClick={() => updateDraft('status', val)}
-                        >
-                          {label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <div className="field">
-                  <label>Samka – ditresa</label>
-                  <div className="pill-row">
-                    {Object.keys(PEOPLE).map((k) => {
-                      const on = (draft.sync_out || []).includes(k);
-                      return (
-                        <button
-                          key={k}
-                          className={`pill ${on ? 'on' : ''}`}
-                          style={on ? { borderColor: CHIP_FG[k], color: CHIP_FG[k], background: CHIP_BG[k] } : undefined}
-                          onClick={() => toggleSync('sync_out', k)}
-                        >
-                          {k}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <div className="field">
-                  <label>Samka – hemresa</label>
-                  <div className="pill-row">
-                    {Object.keys(PEOPLE).map((k) => {
-                      const on = (draft.sync_home || []).includes(k);
-                      return (
-                        <button
-                          key={k}
-                          className={`pill ${on ? 'on' : ''}`}
-                          style={on ? { borderColor: CHIP_FG[k], color: CHIP_FG[k], background: CHIP_BG[k] } : undefined}
-                          onClick={() => toggleSync('sync_home', k)}
-                        >
-                          {k}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              </>
-            )}
-
-            <div className="editor-actions">
-              <button className="btn cancel" onClick={closeEditor} disabled={saving}>
-                Avbryt
-              </button>
-              <button className="btn save" onClick={saveDraft} disabled={saving}>
-                {saving ? 'Sparar…' : 'Klart'}
-              </button>
+        {!isMeal && (
+          <div className="field">
+            <label>Person</label>
+            <div className="pill-row">
+              {Object.keys(PEOPLE).map((k) => {
+                const on = draft.person === k;
+                return (
+                  <button
+                    key={k}
+                    className={`pill ${on ? 'on' : ''}`}
+                    style={on ? { borderColor: CHIP_FG[k], color: CHIP_FG[k], background: CHIP_BG[k] } : undefined}
+                    onClick={() => updateDraft('person', k)}
+                  >
+                    {k}
+                  </button>
+                );
+              })}
             </div>
           </div>
-        </td>
-      </tr>
+        )}
+
+        <div className="time-row">
+          <div className="field">
+            <label>Börjar</label>
+            <input
+              type="time"
+              value={fmtTime(draft.start_time) || ''}
+              onChange={(e) => updateDraft('start_time', e.target.value)}
+            />
+          </div>
+          {!isMeal && (
+            <div className="field">
+              <label>Slutar</label>
+              <input
+                type="time"
+                value={fmtTime(draft.end_time) || ''}
+                onChange={(e) => updateDraft('end_time', e.target.value)}
+              />
+            </div>
+          )}
+        </div>
+
+        {!isMeal && (
+          <>
+            <div className="field">
+              <label>Bilstatus</label>
+              <div className="pill-row">
+                {[
+                  ['ok', 'Ledigt', 'var(--ok)'],
+                  ['tight', 'Tajt', 'var(--tight)'],
+                  ['busy', 'Upptaget', 'var(--busy)'],
+                ].map(([val, label, color]) => {
+                  const on = draft.status === val;
+                  return (
+                    <button
+                      key={val}
+                      className={`pill ${on ? 'on' : ''}`}
+                      style={on ? { borderColor: color, color } : undefined}
+                      onClick={() => updateDraft('status', val)}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="field">
+              <label>Samka – ditresa</label>
+              <div className="pill-row">
+                {Object.keys(PEOPLE).map((k) => {
+                  const on = (draft.sync_out || []).includes(k);
+                  return (
+                    <button
+                      key={k}
+                      className={`pill ${on ? 'on' : ''}`}
+                      style={on ? { borderColor: CHIP_FG[k], color: CHIP_FG[k], background: CHIP_BG[k] } : undefined}
+                      onClick={() => toggleSync('sync_out', k)}
+                    >
+                      {k}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="field">
+              <label>Samka – hemresa</label>
+              <div className="pill-row">
+                {Object.keys(PEOPLE).map((k) => {
+                  const on = (draft.sync_home || []).includes(k);
+                  return (
+                    <button
+                      key={k}
+                      className={`pill ${on ? 'on' : ''}`}
+                      style={on ? { borderColor: CHIP_FG[k], color: CHIP_FG[k], background: CHIP_BG[k] } : undefined}
+                      onClick={() => toggleSync('sync_home', k)}
+                    >
+                      {k}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </>
+        )}
+
+        <div className="editor-actions">
+          <button className="btn cancel" onClick={closeEditor} disabled={saving}>
+            Avbryt
+          </button>
+          <button className="btn save" onClick={saveDraft} disabled={saving}>
+            {saving ? 'Sparar…' : 'Klart'}
+          </button>
+        </div>
+      </div>
     );
   }
 
-  // ---------- En rad i veckotabellen ----------
-  function renderViewRow(r, isFirstOfDay, day) {
-    const isToday = r.day === todayKey;
-    const trCls = [isFirstOfDay ? 'day-first' : '', isToday ? 'today' : ''].filter(Boolean).join(' ');
-    const dayCell = isFirstOfDay ? (
-      <>
-        <span className="day-lbl">{day.abbr}</span>
-        {isToday && <span className="today-tag">IDAG</span>}
-      </>
-    ) : null;
-
+  // ---------- Ett aktivitetskort i veckolistan ----------
+  function renderRowCard(r) {
     if (r.type === 'meal') {
       return (
-        <tr className={`${trCls} meal-row`} key={r.id}>
-          <td>{dayCell}</td>
-          <td className="meal-who">🍴</td>
-          <td className="time" style={{ color: 'var(--meal)' }}>
-            {fmtTime(r.start_time)}
-          </td>
-          <td></td>
-          <td>Middag</td>
-          {editing && (
-            <td className="actions-td">
-              <div className="row-actions">
-                <button className="icon-btn" onClick={() => openEditor(r)}>✎</button>
-                <button className="icon-btn danger" onClick={() => deleteRow(r.id)}>✕</button>
-              </div>
-            </td>
-          )}
-        </tr>
-      );
-    }
-
-    return (
-      <tr className={trCls} key={r.id}>
-        <td>{dayCell}</td>
-        <td>
-          <div className="who">
-            <div className="avatar" style={{ background: CHIP_BG[r.person], color: CHIP_FG[r.person] }}>
-              {r.person}
+        <div className="row-card meal" key={r.id}>
+          <div className="row-accent meal-accent" />
+          <div className="row-avatar meal">🍴</div>
+          <div className="row-main">
+            <div className="row-time" style={{ color: 'var(--meal)' }}>
+              {fmtTime(r.start_time)} <span className="row-meal-label">Middag</span>
             </div>
           </div>
-        </td>
-        <td className="time" style={{ color: statusColor(r.status) }}>
-          {fmtTime(r.start_time)}
-        </td>
-        <td className="time" style={{ color: statusColor(r.status) }}>
-          {fmtTime(r.end_time)}
-        </td>
-        <td>
-          {r.sync_out?.length > 0 || r.sync_home?.length > 0 ? (
-            <div className="sync">
-              {r.sync_out?.length > 0 && (
-                <div className="grp">
-                  <span className="arr">dit</span>
-                  {r.sync_out.map((l) => <Chip key={l} letter={l} />)}
-                </div>
-              )}
-              {r.sync_home?.length > 0 && (
-                <div className="grp">
-                  <span className="arr">hem</span>
-                  {r.sync_home.map((l) => <Chip key={l} letter={l} />)}
-                </div>
-              )}
-            </div>
-          ) : (
-            <span style={{ color: 'var(--text-faint)' }}>–</span>
-          )}
-        </td>
-        {editing && (
-          <td className="actions-td">
+          {editing && (
             <div className="row-actions">
               <button className="icon-btn" onClick={() => openEditor(r)}>✎</button>
               <button className="icon-btn danger" onClick={() => deleteRow(r.id)}>✕</button>
             </div>
-          </td>
+          )}
+        </div>
+      );
+    }
+
+    const leaveOut = leaveTimeFor(r.person, r.start_time);
+    const leaveHome = leaveTimeFor(r.person, r.end_time);
+
+    return (
+      <div className="row-card" key={r.id}>
+        <div className="row-accent" style={{ background: statusColor(r.status) }} />
+        <div className="row-avatar" style={{ background: CHIP_BG[r.person], color: CHIP_FG[r.person] }}>
+          {r.person}
+        </div>
+        <div className="row-main">
+          <div className="row-top">
+            <div className="row-time" style={{ color: statusColor(r.status) }}>
+              {fmtTime(r.start_time)} – {fmtTime(r.end_time)}
+            </div>
+            <div className="row-name">{PEOPLE[r.person]}</div>
+          </div>
+          {(leaveOut || leaveHome) && (
+            <div className="row-leave">
+              {leaveOut && <span>Gå <b>{leaveOut}</b></span>}
+              {leaveHome && <span>Gå <b>{leaveHome}</b></span>}
+            </div>
+          )}
+          {(r.sync_out?.length > 0 || r.sync_home?.length > 0) && (
+            <div className="row-sync">
+              {r.sync_out?.length > 0 && (
+                <div className="grp">
+                  dit {r.sync_out.map((l) => <Chip key={l} letter={l} />)}
+                </div>
+              )}
+              {r.sync_home?.length > 0 && (
+                <div className="grp">
+                  hem {r.sync_home.map((l) => <Chip key={l} letter={l} />)}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+        {editing && (
+          <div className="row-actions">
+            <button className="icon-btn" onClick={() => openEditor(r)}>✎</button>
+            <button className="icon-btn danger" onClick={() => deleteRow(r.id)}>✕</button>
+          </div>
         )}
-      </tr>
+      </div>
     );
   }
 
-  function renderDayGroup(day) {
+  function renderDaySection(day) {
     const list = sortedRowsForDay(day.key);
-    const colSpan = editing ? 6 : 5;
-    const nodes = [];
+    if (list.length === 0 && !editing) return null;
+    const isToday = day.key === todayKey;
 
-    if (list.length === 0 && !editing) return nodes;
-
-    if (list.length === 0 && editing) {
-      const isToday = day.key === todayKey;
-      nodes.push(
-        <tr className={`day-first ${isToday ? 'today' : ''}`} key={`${day.key}-empty`}>
-          <td>
-            <span className="day-lbl">{day.abbr}</span>
-            {isToday && <span className="today-tag">IDAG</span>}
-          </td>
-          <td colSpan={colSpan - 1} style={{ color: 'var(--text-faint)', fontSize: 11 }}>
-            Inget planerat
-          </td>
-        </tr>
-      );
-    }
-
-    list.forEach((r, i) => {
-      nodes.push(renderViewRow(r, i === 0, day));
-      if (editingRowId === r.id && draft) nodes.push(renderEditorRow(colSpan, `ed-${r.id}`));
-    });
-
-    if (editingRowId === 'new' && draft && draft.day === day.key) {
-      nodes.push(renderEditorRow(colSpan, 'ed-new'));
-    }
-
-    if (editing) {
-      nodes.push(
-        <tr className="add-link-row" key={`${day.key}-add`}>
-          <td colSpan={colSpan}>
-            <button className="add-link" onClick={() => openAddEditor(day.key)}>
-              + Lägg till {day.abbr}
-            </button>
-          </td>
-        </tr>
-      );
-    }
-
-    return nodes;
+    return (
+      <section className={`day-section ${isToday ? 'today' : ''}`} key={day.key}>
+        <div className="day-header">
+          <span className="day-name">{day.full}</span>
+          {isToday && <span className="today-pill">IDAG</span>}
+        </div>
+        <div className="day-rows">
+          {list.length === 0 && <div className="day-empty">Inget planerat</div>}
+          {list.map((r) => (
+            <div key={`wrap-${r.id}`}>
+              {renderRowCard(r)}
+              {editingRowId === r.id && draft && renderEditorCard(`ed-${r.id}`)}
+            </div>
+          ))}
+          {editingRowId === 'new' && draft && draft.day === day.key && renderEditorCard('ed-new')}
+        </div>
+        {editing && (
+          <button className="add-day-btn" onClick={() => openAddEditor(day.key)}>
+            + Lägg till i {day.full.toLowerCase()}
+          </button>
+        )}
+      </section>
+    );
   }
 
   return (
@@ -590,31 +557,11 @@ export default function Home() {
 
       {errorMsg && <div className="error-banner">{errorMsg}</div>}
 
-      <div className="table-wrap">
+      <div className="week-wrap">
         {loading ? (
-          <p style={{ padding: '12px 4px', color: 'var(--text-dim)', fontSize: 13 }}>Laddar schema…</p>
+          <p style={{ padding: '16px 4px', color: 'var(--text-dim)', fontSize: 14 }}>Laddar schema…</p>
         ) : (
-          <table>
-            <colgroup>
-              <col className="c-day" />
-              <col className="c-who" />
-              <col className="c-start" />
-              <col className="c-end" />
-              <col className="c-sync" />
-              {editing && <col style={{ width: '10%' }} />}
-            </colgroup>
-            <thead>
-              <tr>
-                <th>Dag</th>
-                <th>Vem</th>
-                <th>Börjar</th>
-                <th>Slutar</th>
-                <th>Synk</th>
-                {editing && <th></th>}
-              </tr>
-            </thead>
-            <tbody>{DAYS.map((day) => renderDayGroup(day))}</tbody>
-          </table>
+          DAYS.map((day) => renderDaySection(day))
         )}
       </div>
 
