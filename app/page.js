@@ -27,10 +27,16 @@ const LEAVE_MINUTES = { P: 20, M: 20, K: 15 };
 // byta kod (kräver en ny commit + deploy, ingen miljövariabel behövs).
 const EDIT_PIN = '1234';
 
-const STATUS_COLOR = { busy: 'var(--busy)', tight: 'var(--tight)', ok: 'var(--ok)' };
+const COLOR_MAP = { red: 'var(--busy)', orange: 'var(--tight)', green: 'var(--ok)', white: 'var(--text)' };
+const COLOR_OPTIONS = [
+  ['white', 'Vit'],
+  ['green', 'Grön'],
+  ['orange', 'Orange'],
+  ['red', 'Röd'],
+];
 
-function statusColor(s) {
-  return STATUS_COLOR[s] || STATUS_COLOR.ok;
+function colorFor(c) {
+  return COLOR_MAP[c] || COLOR_MAP.white;
 }
 
 // Supabase time-kolumner kommer som "HH:MM:SS" - klipp bort sekunderna.
@@ -62,7 +68,9 @@ function emptyDraft(day) {
     person: 'P',
     start_time: '17:00',
     end_time: '18:00',
-    status: 'ok',
+    start_color: 'white',
+    end_color: 'white',
+    note: '',
     sync_out: [],
     sync_home: [],
   };
@@ -131,7 +139,8 @@ export default function Home() {
       } else {
         if (!next.end_time) next.end_time = '18:00';
         if (!next.person) next.person = 'P';
-        if (!next.status) next.status = 'ok';
+        if (!next.start_color) next.start_color = 'white';
+        if (!next.end_color) next.end_color = 'white';
         if (!next.sync_out) next.sync_out = [];
         if (!next.sync_home) next.sync_home = [];
       }
@@ -154,7 +163,9 @@ export default function Home() {
       person: draft.type === 'meal' ? null : draft.person,
       start_time: draft.start_time,
       end_time: draft.type === 'meal' ? null : draft.end_time,
-      status: draft.type === 'meal' ? 'ok' : draft.status,
+      start_color: draft.type === 'meal' ? 'white' : draft.start_color || 'white',
+      end_color: draft.type === 'meal' ? 'white' : draft.end_color || 'white',
+      note: draft.note || null,
       sync_out: draft.type === 'meal' ? [] : draft.sync_out || [],
       sync_home: draft.type === 'meal' ? [] : draft.sync_home || [],
     };
@@ -241,7 +252,7 @@ export default function Home() {
                   <div className="hero-body">
                     <div className="hero-times">
                       <div className="hero-tblock">
-                        <div className="hero-time" style={{ color: statusColor(r.status) }}>
+                        <div className="hero-time" style={{ color: colorFor(r.start_color) }}>
                           {fmtTime(r.start_time)}
                         </div>
                         {leaveTimeFor(r.person, r.start_time) && (
@@ -252,7 +263,7 @@ export default function Home() {
                       </div>
                       <div className="hero-sep">–</div>
                       <div className="hero-tblock">
-                        <div className="hero-time" style={{ color: statusColor(r.status) }}>
+                        <div className="hero-time" style={{ color: colorFor(r.end_color) }}>
                           {fmtTime(r.end_time)}
                         </div>
                         {leaveTimeFor(r.person, r.end_time) && (
@@ -368,21 +379,40 @@ export default function Home() {
         {!isMeal && (
           <>
             <div className="field">
-              <label>Bilstatus</label>
+              <label>Färg – lämna ({fmtTime(draft.start_time)})</label>
               <div className="pill-row">
-                {[
-                  ['ok', 'Ledigt', 'var(--ok)'],
-                  ['tight', 'Tajt', 'var(--tight)'],
-                  ['busy', 'Upptaget', 'var(--busy)'],
-                ].map(([val, label, color]) => {
-                  const on = draft.status === val;
+                {COLOR_OPTIONS.map(([val, label]) => {
+                  const on = draft.start_color === val;
+                  const c = COLOR_MAP[val];
                   return (
                     <button
                       key={val}
                       className={`pill ${on ? 'on' : ''}`}
-                      style={on ? { borderColor: color, color } : undefined}
-                      onClick={() => updateDraft('status', val)}
+                      style={on ? { borderColor: c, color: c } : undefined}
+                      onClick={() => updateDraft('start_color', val)}
                     >
+                      <span className="swatch" style={{ background: c }} />
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="field">
+              <label>Färg – hämta ({fmtTime(draft.end_time)})</label>
+              <div className="pill-row">
+                {COLOR_OPTIONS.map(([val, label]) => {
+                  const on = draft.end_color === val;
+                  const c = COLOR_MAP[val];
+                  return (
+                    <button
+                      key={val}
+                      className={`pill ${on ? 'on' : ''}`}
+                      style={on ? { borderColor: c, color: c } : undefined}
+                      onClick={() => updateDraft('end_color', val)}
+                    >
+                      <span className="swatch" style={{ background: c }} />
                       {label}
                     </button>
                   );
@@ -430,6 +460,17 @@ export default function Home() {
           </>
         )}
 
+        <div className="field">
+          <label>Anteckning</label>
+          <textarea
+            className="note-input"
+            rows={2}
+            placeholder="T.ex. glöm inte matchkläder"
+            value={draft.note || ''}
+            onChange={(e) => updateDraft('note', e.target.value)}
+          />
+        </div>
+
         <div className="editor-actions">
           <button className="btn cancel" onClick={closeEditor} disabled={saving}>
             Avbryt
@@ -469,14 +510,16 @@ export default function Home() {
 
     return (
       <div className="row-card" key={r.id}>
-        <div className="row-accent" style={{ background: statusColor(r.status) }} />
+        <div className="row-accent" style={{ background: colorFor(r.start_color) }} />
         <div className="row-avatar" style={{ background: CHIP_BG[r.person], color: CHIP_FG[r.person] }}>
           {r.person}
         </div>
         <div className="row-main">
           <div className="row-top">
-            <div className="row-time" style={{ color: statusColor(r.status) }}>
-              {fmtTime(r.start_time)} – {fmtTime(r.end_time)}
+            <div className="row-time">
+              <span style={{ color: colorFor(r.start_color) }}>{fmtTime(r.start_time)}</span>
+              {' – '}
+              <span style={{ color: colorFor(r.end_color) }}>{fmtTime(r.end_time)}</span>
             </div>
             <div className="row-name">{PEOPLE[r.person]}</div>
           </div>
@@ -501,6 +544,7 @@ export default function Home() {
             </div>
           )}
         </div>
+        {r.note && <div className="row-note">{r.note}</div>}
         {editing && (
           <div className="row-actions">
             <button className="icon-btn" onClick={() => openEditor(r)}>✎</button>
