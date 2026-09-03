@@ -13,10 +13,12 @@
   --meal: #f2c879;
   --today-bg: #0f1e18;
   --accent-p: #6aa3f7;
+  --accent-a: #f78a5e;
   --accent-h: #c398f5;
   --accent-k: #f782b0;
   --accent-z: #f7c948;
   --accent-m: #4fd6a8;
+  --accent-t: #b8c4d9;
 }
 
 * {
@@ -567,6 +569,23 @@ footer span {
   height: 8px;
   border-radius: 50%;
   display: inline-block;
+}
+.together-btn {
+  background: none;
+  border: none;
+  color: var(--text-faint);
+  font-size: 10.5px;
+  cursor: pointer;
+  padding: 2px 4px;
+  font-family: 'Inter', sans-serif;
+}
+.together-btn.on {
+  color: var(--accent-t);
+  border: 1px solid var(--card-border);
+  border-radius: 7px;
+  padding: 4px 10px;
+  font-weight: 600;
+  font-size: 11.5px;
 }
 
 .modal-overlay {
