@@ -3,14 +3,25 @@
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabaseClient';
 
-const PEOPLE = { P: 'Per', H: 'Hedvig', K: 'Klara', Z: 'Zoi', M: 'Moa' };
-const CHIP_BG = { P: '#16263f', H: '#241b3d', K: '#3a1830', Z: '#3a2c10', M: '#123328' };
+const PEOPLE = { P: 'Per', A: 'Anna', H: 'Hedvig', K: 'Klara', Z: 'Zoi', M: 'Moa', T: 'Tillsammans' };
+const FAMILY = ['P', 'A', 'H', 'K', 'Z', 'M']; // vanliga familjemedlemmar, alltid synliga/valbara
+const CHIP_BG = {
+  P: '#16263f',
+  A: '#3a2418',
+  H: '#241b3d',
+  K: '#3a1830',
+  Z: '#3a2c10',
+  M: '#123328',
+  T: '#1a1e29',
+};
 const CHIP_FG = {
   P: 'var(--accent-p)',
+  A: 'var(--accent-a)',
   H: 'var(--accent-h)',
   K: 'var(--accent-k)',
   Z: 'var(--accent-z)',
   M: 'var(--accent-m)',
+  T: 'var(--accent-t)',
 };
 const DAYS = [
   { key: 'mon', abbr: 'Mån', full: 'Måndag' },
@@ -26,6 +37,11 @@ const LEAVE_MINUTES = { P: 20, M: 20, K: 15 };
 // Enkel PIN-spärr för redigeringsläget. Ändra siffrorna nedan om ni vill
 // byta kod (kräver en ny commit + deploy, ingen miljövariabel behövs).
 const EDIT_PIN = '1234';
+// Egen PIN för "Tillsammans"-läget (P + A). Håll den hemlig från barnen,
+// och gärna en annan kod än EDIT_PIN så de inte råkar avslöja den när de
+// får redigerings-koden för egna pass.
+const TOGETHER_PIN = '7391';
+const TOGETHER_STORAGE_KEY = 'skjuts_tillsammans_unlocked';
 
 const COLOR_MAP = { red: 'var(--busy)', orange: 'var(--tight)', green: 'var(--ok)', white: 'var(--text)' };
 const COLOR_OPTIONS = [
@@ -86,11 +102,21 @@ export default function Home() {
   const [editingRowId, setEditingRowId] = useState(null); // id, eller 'new'
   const [draft, setDraft] = useState(null);
 
-  const [showPin, setShowPin] = useState(false);
+  const [tillsammansUnlocked, setTillsammansUnlocked] = useState(false);
+
+  // pinModal: null | 'edit' | 'together'
+  const [pinModal, setPinModal] = useState(null);
   const [pinValue, setPinValue] = useState('');
   const [pinError, setPinError] = useState(false);
 
   const todayKey = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'][new Date().getDay()];
+
+  // Tillsammans-läget loggar INTE ut automatiskt - kolla sparat läge vid start.
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.localStorage.getItem(TOGETHER_STORAGE_KEY) === '1') {
+      setTillsammansUnlocked(true);
+    }
+  }, []);
 
   const fetchRows = useCallback(async () => {
     const { data, error } = await supabase.from('training_schedule').select('*');
@@ -109,6 +135,7 @@ export default function Home() {
   function sortedRowsForDay(dayKey) {
     return rows
       .filter((r) => r.day === dayKey)
+      .filter((r) => tillsammansUnlocked || r.person !== 'T')
       .sort((a, b) => {
         if (a.type !== b.type) return a.type === 'meal' ? -1 : 1;
         return (a.start_time || '').localeCompare(b.start_time || '');
@@ -193,15 +220,21 @@ export default function Home() {
     setSaving(false);
   }
 
-  function openPinModal() {
+  function openPinModal(mode) {
     setPinValue('');
     setPinError(false);
-    setShowPin(true);
+    setPinModal(mode);
   }
   function checkPin() {
-    if (pinValue === EDIT_PIN) {
-      setEditing(true);
-      setShowPin(false);
+    const expected = pinModal === 'together' ? TOGETHER_PIN : EDIT_PIN;
+    if (pinValue === expected) {
+      if (pinModal === 'together') {
+        setTillsammansUnlocked(true);
+        if (typeof window !== 'undefined') window.localStorage.setItem(TOGETHER_STORAGE_KEY, '1');
+      } else {
+        setEditing(true);
+      }
+      setPinModal(null);
     } else {
       setPinError(true);
       setPinValue('');
@@ -212,7 +245,15 @@ export default function Home() {
       setEditing(false);
       closeEditor();
     } else {
-      openPinModal();
+      openPinModal('edit');
+    }
+  }
+  function toggleTogether() {
+    if (tillsammansUnlocked) {
+      setTillsammansUnlocked(false);
+      if (typeof window !== 'undefined') window.localStorage.removeItem(TOGETHER_STORAGE_KEY);
+    } else {
+      openPinModal('together');
     }
   }
 
@@ -338,7 +379,7 @@ export default function Home() {
           <div className="field">
             <label>Person</label>
             <div className="pill-row">
-              {Object.keys(PEOPLE).map((k) => {
+              {(tillsammansUnlocked ? [...FAMILY, 'T'] : FAMILY).map((k) => {
                 const on = draft.person === k;
                 return (
                   <button
@@ -423,7 +464,7 @@ export default function Home() {
             <div className="field">
               <label>Samka – ditresa</label>
               <div className="pill-row">
-                {Object.keys(PEOPLE).map((k) => {
+                {FAMILY.map((k) => {
                   const on = (draft.sync_out || []).includes(k);
                   return (
                     <button
@@ -442,7 +483,7 @@ export default function Home() {
             <div className="field">
               <label>Samka – hemresa</label>
               <div className="pill-row">
-                {Object.keys(PEOPLE).map((k) => {
+                {FAMILY.map((k) => {
                   const on = (draft.sync_home || []).includes(k);
                   return (
                     <button
@@ -610,19 +651,25 @@ export default function Home() {
       </div>
 
       <footer>
-        {Object.entries(PEOPLE).map(([k, name]) => (
+        {(tillsammansUnlocked ? [...FAMILY, 'T'] : FAMILY).map((k) => (
           <span key={k}>
             <span className="dot" style={{ background: CHIP_FG[k] }}></span>
-            {k} = {name}
+            {k} = {PEOPLE[k]}
           </span>
         ))}
+        <button
+          className={tillsammansUnlocked ? 'together-btn on' : 'together-btn'}
+          onClick={toggleTogether}
+        >
+          {tillsammansUnlocked ? 'Familjeläge' : 'v1.0'}
+        </button>
       </footer>
 
-      {showPin && (
+      {pinModal && (
         <div className="modal-overlay">
           <div className="modal">
-            <h3>Lås upp redigering</h3>
-            <p>Ange PIN-kod</p>
+            <h3>Ange kod</h3>
+            <p>Kod krävs för att fortsätta</p>
             <input
               className="pin-input"
               type="password"
@@ -638,7 +685,7 @@ export default function Home() {
               style={pinError ? { borderColor: 'var(--busy)' } : undefined}
             />
             <div className="editor-actions">
-              <button className="btn cancel" onClick={() => setShowPin(false)}>
+              <button className="btn cancel" onClick={() => setPinModal(null)}>
                 Avbryt
               </button>
               <button className="btn save" onClick={checkPin}>
