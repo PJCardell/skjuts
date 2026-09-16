@@ -58,10 +58,21 @@ const SL_DEPARTURES_URL = (siteId) =>
 const TRANSIT_PERSONS = ['A', 'K', 'M', 'P'];
 const TRANSIT_ROWS = [0, 1]; // 0 = övre raden, 1 = nedre raden
 const TRANSIT_MODE_LABEL = { TRAIN: 'Pendeltåg', BUS: 'Buss', METRO: 'Tunnelbana', TRAM: 'Spårvagn' };
-// En ruta per `${person}:${rad}`. Fyll på fler när vi vet barnens hållplatser.
-// directionCode: 1 = söderut (mot Sthlm City), 2 = norrut - gäller pendeltåg i Sundbyberg.
+// En ruta per `${person}:${rad}` (rad 0 = övre raden, rad 1 = nedre raden).
+// directionCode: 2 = norrut, 1 = söderut för pendeltåg/tunnelbana; för tvärbanan
+// är 1 = mot Solna station (norr via Alvik→Bällsta bro→Sundbyberg), 2 = mot Sickla.
+// Valfri `lines` visar bara dessa linjebeteckningar; utelämnad = alla linjer i läget.
+// Site-id: 1339 Södra station, 9325 Sundbyberg (alias Sundbybergs centrum),
+// 9309 Rådhuset (tbana), 9509 Solna (alias Solna station), 9112 Alvik, 3680 Bällsta bro.
 const TRANSIT_CELLS = {
+  'P:0': { siteId: 1339, mode: 'TRAIN', directionCode: 2, lines: ['43', '43X'], short: 'Sthlm S → norr' },
   'P:1': { siteId: 9325, mode: 'TRAIN', directionCode: 1, short: 'Sbg → söder' },
+  'M:0': { siteId: 9309, mode: 'METRO', directionCode: 1, lines: ['10'], short: 'Rådhuset → norr' },
+  'M:1': { siteId: 9325, mode: 'METRO', directionCode: 2, short: 'Sbg C → söder' },
+  'A:0': { siteId: 9509, mode: 'TRAM', directionCode: null, short: 'Solna st' },
+  'A:1': { siteId: 9325, mode: 'TRAM', directionCode: 1, short: 'Sbg C → Solna' },
+  'K:0': { siteId: 9112, mode: 'TRAM', directionCode: 1, lines: ['30'], short: 'Alvik → Sbg' },
+  'K:1': { siteId: 3680, mode: 'TRAM', directionCode: 2, short: 'Bällsta → Alvik' },
 };
 
 function colorFor(c) {
@@ -250,7 +261,8 @@ export default function Home() {
         .filter(
           (x) =>
             x.line?.transport_mode === cfg.mode &&
-            (cfg.directionCode == null || x.direction_code === cfg.directionCode)
+            (cfg.directionCode == null || x.direction_code === cfg.directionCode) &&
+            (cfg.lines == null || cfg.lines.includes(x.line?.designation))
         )
         .slice(0, 3);
       setTransitData((d) => ({ ...d, [key]: { loading: false, error: null, deps, at: new Date() } }));
@@ -703,22 +715,37 @@ export default function Home() {
           <div className="transit-deps">
             {deps.map((x, i) => {
               const cancelled = x.state === 'CANCELLED';
-              const delayed =
-                !cancelled &&
-                x.expected &&
-                x.scheduled &&
-                new Date(x.expected) - new Date(x.scheduled) >= 60000;
-              const color = cancelled ? 'var(--busy)' : delayed ? 'var(--tight)' : 'var(--text)';
+              const exp = x.expected ? new Date(x.expected) : null;
+              const sched = x.scheduled ? new Date(x.scheduled) : null;
+              const delayMin = exp && sched ? Math.round((exp - sched) / 60000) : 0;
+              const clock = exp
+                ? `${String(exp.getHours()).padStart(2, '0')}:${String(exp.getMinutes()).padStart(2, '0')}`
+                : '';
+              // Klockslagets färg: vitt i tid, orange om sent, rött om mer än 10 min sent.
+              const clockColor =
+                cancelled || delayMin > 10 ? 'var(--busy)' : delayMin >= 1 ? 'var(--tight)' : 'var(--text)';
+              // SL:s "display" är antingen nedräkning ("5 min"/"Nu") eller redan ett klockslag.
+              const displayIsClock = /^\d{1,2}:\d{2}$/.test(x.display || '');
               return (
                 <div className="transit-dep" key={i}>
                   <span className="transit-line">{x.line?.designation}</span>
                   <span className="transit-dest">{x.destination}</span>
-                  <span
-                    className="transit-when"
-                    style={{ color, textDecoration: cancelled ? 'line-through' : 'none' }}
-                  >
-                    {cancelled ? 'Inställd' : x.display}
-                  </span>
+                  {cancelled ? (
+                    <span className="transit-clock" style={{ color: 'var(--busy)' }}>
+                      Inställd
+                    </span>
+                  ) : displayIsClock ? (
+                    <span className="transit-clock" style={{ color: clockColor }}>
+                      {clock}
+                    </span>
+                  ) : (
+                    <>
+                      <span className="transit-when">{x.display}</span>
+                      <span className="transit-clock" style={{ color: clockColor }}>
+                        {clock}
+                      </span>
+                    </>
+                  )}
                 </div>
               );
             })}
@@ -737,6 +764,7 @@ export default function Home() {
   function renderTransit() {
     return (
       <section className="transit">
+        {transitOpen && TRANSIT_CELLS[transitOpen] && renderTransitPanel(transitOpen)}
         <div className="transit-grid">
           <div className="transit-corner">🚆</div>
           {TRANSIT_PERSONS.map((p) => (
@@ -769,7 +797,6 @@ export default function Home() {
             </Fragment>
           ))}
         </div>
-        {transitOpen && TRANSIT_CELLS[transitOpen] && renderTransitPanel(transitOpen)}
       </section>
     );
   }

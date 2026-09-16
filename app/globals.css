@@ -42,6 +42,8 @@ body {
   display: flex;
   flex-direction: column;
   min-height: 100dvh;
+  /* Lämna plats så det fasta avgångsfältet inte döljer sidfoten. */
+  padding-bottom: calc(150px + env(safe-area-inset-bottom));
 }
 
 header {
@@ -632,9 +634,16 @@ footer span {
 
 /* ---------- Kollektivtrafik (avgångar) ---------- */
 .transit {
-  flex: 0 0 auto;
-  padding: 6px calc(16px + env(safe-area-inset-right)) 14px calc(16px + env(safe-area-inset-left));
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 40;
+  padding: 8px calc(14px + env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom))
+    calc(14px + env(safe-area-inset-left));
   border-top: 1px solid var(--card-border);
+  background: rgba(11, 15, 20, 0.94);
+  backdrop-filter: blur(10px);
 }
 .transit-grid {
   display: grid;
@@ -691,11 +700,14 @@ footer span {
   background: #0f1a2b;
 }
 .transit-panel {
-  margin-top: 8px;
+  margin-bottom: 8px;
   background: var(--card);
   border: 1px solid var(--card-border);
   border-radius: 12px;
   padding: 12px 14px;
+  box-shadow: 0 8px 26px rgba(0, 0, 0, 0.45);
+  max-height: 50vh;
+  overflow-y: auto;
 }
 .transit-panel-head {
   display: flex;
@@ -751,6 +763,16 @@ footer span {
   font-size: 15px;
   font-variant-numeric: tabular-nums;
   flex-shrink: 0;
+  color: var(--text);
+}
+.transit-clock {
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 700;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+  min-width: 48px;
+  text-align: right;
 }
 .transit-msg {
   font-size: 12.5px;
