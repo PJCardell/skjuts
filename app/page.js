@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, Fragment } from 'react';
 import { supabase } from '../lib/supabaseClient';
 
 const PEOPLE = { P: 'Per', A: 'Anna', H: 'Hedvig', K: 'Klara', Z: 'Zoi', M: 'Moa', T: 'Tillsammans' };
@@ -50,6 +50,19 @@ const COLOR_OPTIONS = [
   ['orange', 'Orange'],
   ['red', 'Röd'],
 ];
+
+// ---------- Kollektivtrafik (SL Transport API - kräver ingen nyckel) ----------
+const SL_DEPARTURES_URL = (siteId) =>
+  `https://transport.integration.sl.se/v1/sites/${siteId}/departures?forecast=90`;
+// Kolumner (namn) och de två riktningsraderna i avgångstabellen.
+const TRANSIT_PERSONS = ['A', 'K', 'M', 'P'];
+const TRANSIT_ROWS = [0, 1]; // 0 = övre raden, 1 = nedre raden
+const TRANSIT_MODE_LABEL = { TRAIN: 'Pendeltåg', BUS: 'Buss', METRO: 'Tunnelbana', TRAM: 'Spårvagn' };
+// En ruta per `${person}:${rad}`. Fyll på fler när vi vet barnens hållplatser.
+// directionCode: 1 = söderut (mot Sthlm City), 2 = norrut - gäller pendeltåg i Sundbyberg.
+const TRANSIT_CELLS = {
+  'P:1': { siteId: 9325, mode: 'TRAIN', directionCode: 1, short: 'Sbg → söder' },
+};
 
 function colorFor(c) {
   return COLOR_MAP[c] || COLOR_MAP.white;
@@ -108,6 +121,10 @@ export default function Home() {
   const [pinModal, setPinModal] = useState(null);
   const [pinValue, setPinValue] = useState('');
   const [pinError, setPinError] = useState(false);
+
+  // Kollektivtrafik: vilken ruta som är öppen + hämtad data per ruta.
+  const [transitOpen, setTransitOpen] = useState(null);
+  const [transitData, setTransitData] = useState({}); // key -> { loading, error, deps, at }
 
   const todayKey = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'][new Date().getDay()];
 
@@ -218,6 +235,41 @@ export default function Home() {
       await fetchRows();
     }
     setSaving(false);
+  }
+
+  // ---------- Kollektivtrafik ----------
+  const loadDepartures = useCallback(async (key) => {
+    const cfg = TRANSIT_CELLS[key];
+    if (!cfg) return;
+    setTransitData((d) => ({ ...d, [key]: { ...(d[key] || {}), loading: true, error: null } }));
+    try {
+      const res = await fetch(SL_DEPARTURES_URL(cfg.siteId));
+      if (!res.ok) throw new Error('SL svarade ' + res.status);
+      const json = await res.json();
+      const deps = (json.departures || [])
+        .filter(
+          (x) =>
+            x.line?.transport_mode === cfg.mode &&
+            (cfg.directionCode == null || x.direction_code === cfg.directionCode)
+        )
+        .slice(0, 3);
+      setTransitData((d) => ({ ...d, [key]: { loading: false, error: null, deps, at: new Date() } }));
+    } catch (e) {
+      setTransitData((d) => ({
+        ...d,
+        [key]: { loading: false, error: e.message || 'Nätverksfel', deps: [], at: null },
+      }));
+    }
+  }, []);
+
+  function toggleTransit(key) {
+    if (!TRANSIT_CELLS[key]) return;
+    if (transitOpen === key) {
+      setTransitOpen(null); // tryck på öppen ruta = stäng
+    } else {
+      setTransitOpen(key);
+      loadDepartures(key);
+    }
   }
 
   function openPinModal(mode) {
@@ -626,6 +678,102 @@ export default function Home() {
     );
   }
 
+  // ---------- Avgångstabell (kollektivtrafik) ----------
+  function renderTransitPanel(key) {
+    const cfg = TRANSIT_CELLS[key];
+    const st = transitData[key] || {};
+    const modeLabel = TRANSIT_MODE_LABEL[cfg.mode] || cfg.mode;
+    const deps = st.deps || [];
+    return (
+      <div className="transit-panel">
+        <div className="transit-panel-head">
+          <span className="transit-panel-title">
+            {cfg.short} · {modeLabel}
+          </span>
+          <button className="transit-refresh" onClick={() => loadDepartures(key)} aria-label="Uppdatera">
+            ↻
+          </button>
+        </div>
+        {st.loading && <div className="transit-msg">Hämtar avgångar…</div>}
+        {st.error && <div className="transit-msg err">Kunde inte hämta: {st.error}</div>}
+        {!st.loading && !st.error && deps.length === 0 && (
+          <div className="transit-msg">Inga avgångar de närmaste 90 minuterna.</div>
+        )}
+        {!st.loading && !st.error && deps.length > 0 && (
+          <div className="transit-deps">
+            {deps.map((x, i) => {
+              const cancelled = x.state === 'CANCELLED';
+              const delayed =
+                !cancelled &&
+                x.expected &&
+                x.scheduled &&
+                new Date(x.expected) - new Date(x.scheduled) >= 60000;
+              const color = cancelled ? 'var(--busy)' : delayed ? 'var(--tight)' : 'var(--text)';
+              return (
+                <div className="transit-dep" key={i}>
+                  <span className="transit-line">{x.line?.designation}</span>
+                  <span className="transit-dest">{x.destination}</span>
+                  <span
+                    className="transit-when"
+                    style={{ color, textDecoration: cancelled ? 'line-through' : 'none' }}
+                  >
+                    {cancelled ? 'Inställd' : x.display}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        {st.at && !st.loading && (
+          <div className="transit-updated">
+            Uppdaterad {String(st.at.getHours()).padStart(2, '0')}:
+            {String(st.at.getMinutes()).padStart(2, '0')}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  function renderTransit() {
+    return (
+      <section className="transit">
+        <div className="transit-grid">
+          <div className="transit-corner">🚆</div>
+          {TRANSIT_PERSONS.map((p) => (
+            <div
+              key={`th-${p}`}
+              className="transit-head"
+              style={{ background: CHIP_BG[p], color: CHIP_FG[p] }}
+            >
+              {p}
+            </div>
+          ))}
+          {TRANSIT_ROWS.map((r) => (
+            <Fragment key={`tr-${r}`}>
+              <div className="transit-rowlabel">{r === 0 ? '↑' : '↓'}</div>
+              {TRANSIT_PERSONS.map((p) => {
+                const key = `${p}:${r}`;
+                const cfg = TRANSIT_CELLS[key];
+                const open = transitOpen === key;
+                return (
+                  <button
+                    key={key}
+                    className={`transit-cell ${cfg ? 'has' : 'empty'} ${open ? 'open' : ''}`}
+                    onClick={() => toggleTransit(key)}
+                    disabled={!cfg}
+                  >
+                    {cfg ? cfg.short : '–'}
+                  </button>
+                );
+              })}
+            </Fragment>
+          ))}
+        </div>
+        {transitOpen && TRANSIT_CELLS[transitOpen] && renderTransitPanel(transitOpen)}
+      </section>
+    );
+  }
+
   return (
     <div className="app-shell">
       <header>
@@ -649,6 +797,8 @@ export default function Home() {
           DAYS.map((day) => renderDaySection(day))
         )}
       </div>
+
+      {renderTransit()}
 
       <footer>
         {(tillsammansUnlocked ? [...FAMILY, 'T'] : FAMILY).map((k) => (
