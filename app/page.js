@@ -65,13 +65,13 @@ const TRANSIT_MODE_LABEL = { TRAIN: 'Pendeltåg', BUS: 'Buss', METRO: 'Tunnelban
 // Site-id: 1339 Södra station, 9325 Sundbyberg (alias Sundbybergs centrum),
 // 9309 Rådhuset (tbana), 9509 Solna (alias Solna station), 9112 Alvik, 3680 Bällsta bro.
 const TRANSIT_CELLS = {
-  'P:0': { siteId: 1339, mode: 'TRAIN', directionCode: 2, lines: ['43', '43X'], short: 'Sthlm S → norr' },
+  'P:0': { siteId: 1339, mode: 'TRAIN', directionCode: 2, lines: ['43', '43X'], short: 'Sthlm S → Sumpan' },
   'P:1': { siteId: 9325, mode: 'TRAIN', directionCode: 1, short: 'Sbg → söder' },
-  'M:0': { siteId: 9309, mode: 'METRO', directionCode: 1, lines: ['10'], short: 'Rådhuset → norr' },
+  'M:0': { siteId: 9309, mode: 'METRO', directionCode: 1, lines: ['10'], short: 'Rådhuset → Sumpan' },
   'M:1': { siteId: 9325, mode: 'METRO', directionCode: 2, short: 'Sbg C → söder' },
-  'A:0': { siteId: 9509, mode: 'TRAM', directionCode: null, short: 'Solna st' },
-  'A:1': { siteId: 9325, mode: 'TRAM', directionCode: 1, short: 'Sbg C → Solna' },
-  'K:0': { siteId: 9112, mode: 'TRAM', directionCode: 1, lines: ['30'], short: 'Alvik → Sbg' },
+  'A:0': { siteId: 9509, mode: 'TRAM', directionCode: null, short: 'Solna St → Sumpan' },
+  'A:1': { siteId: 9325, mode: 'TRAM', directionCode: 1, short: 'Sumpan → Solna C' },
+  'K:0': { siteId: 9112, mode: 'TRAM', directionCode: 1, lines: ['30'], short: 'Alvik → Bälsta' },
   'K:1': { siteId: 3680, mode: 'TRAM', directionCode: 2, short: 'Bällsta → Alvik' },
 };
 

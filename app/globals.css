@@ -716,7 +716,7 @@ footer span {
   margin-bottom: 8px;
 }
 .transit-panel-title {
-  font-size: 13px;
+  font-size: 20px;
   font-weight: 700;
   color: var(--text);
 }
@@ -734,24 +734,24 @@ footer span {
 .transit-deps {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 11px;
 }
 .transit-dep {
   display: flex;
   align-items: baseline;
-  gap: 10px;
+  gap: 13px;
 }
 .transit-line {
   font-family: 'Space Grotesk', sans-serif;
   font-weight: 700;
-  font-size: 13px;
-  min-width: 32px;
+  font-size: 20px;
+  min-width: 44px;
   color: var(--text-dim);
 }
 .transit-dest {
   flex: 1;
   min-width: 0;
-  font-size: 13px;
+  font-size: 20px;
   color: var(--text-dim);
   white-space: nowrap;
   overflow: hidden;
@@ -760,7 +760,7 @@ footer span {
 .transit-when {
   font-family: 'Space Grotesk', sans-serif;
   font-weight: 700;
-  font-size: 15px;
+  font-size: 22px;
   font-variant-numeric: tabular-nums;
   flex-shrink: 0;
   color: var(--text);
@@ -768,14 +768,14 @@ footer span {
 .transit-clock {
   font-family: 'Space Grotesk', sans-serif;
   font-weight: 700;
-  font-size: 15px;
+  font-size: 22px;
   font-variant-numeric: tabular-nums;
   flex-shrink: 0;
-  min-width: 48px;
+  min-width: 70px;
   text-align: right;
 }
 .transit-msg {
-  font-size: 12.5px;
+  font-size: 19px;
   color: var(--text-dim);
   padding: 2px 0;
 }
@@ -783,7 +783,7 @@ footer span {
   color: var(--busy);
 }
 .transit-updated {
-  font-size: 11px;
+  font-size: 16px;
   color: var(--text-faint);
-  margin-top: 8px;
+  margin-top: 10px;
 }
