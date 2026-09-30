@@ -51,9 +51,10 @@ const COLOR_OPTIONS = [
   ['red', 'Röd'],
 ];
 
-// ---------- Kollektivtrafik (SL Transport API - kräver ingen nyckel) ----------
-const SL_DEPARTURES_URL = (siteId) =>
-  `https://transport.integration.sl.se/v1/sites/${siteId}/departures?forecast=90`;
+// ---------- Kollektivtrafik ----------
+// Går via vår egen proxy (app/api/departures) som cachar och hanterar SL:s
+// rate limiting (429) med "stale-on-error" - se den filen.
+const SL_DEPARTURES_URL = (siteId) => `/api/departures?site=${siteId}&forecast=90`;
 // Kolumner (namn) och de två riktningsraderna i avgångstabellen.
 const TRANSIT_PERSONS = ['A', 'K', 'M', 'P'];
 const TRANSIT_ROWS = [0, 1]; // 0 = övre raden, 1 = nedre raden
@@ -253,35 +254,49 @@ export default function Home() {
     const cfg = TRANSIT_CELLS[key];
     if (!cfg) return;
     setTransitData((d) => ({ ...d, [key]: { ...(d[key] || {}), loading: true, error: null } }));
-    try {
-      const res = await fetch(SL_DEPARTURES_URL(cfg.siteId));
-      if (!res.ok) throw new Error('SL svarade ' + res.status);
-      const json = await res.json();
-      const deps = (json.departures || [])
-        .filter(
-          (x) =>
-            x.line?.transport_mode === cfg.mode &&
-            (cfg.directionCode == null || x.direction_code === cfg.directionCode) &&
-            (cfg.lines == null || cfg.lines.includes(x.line?.designation))
-        )
-        .slice(0, 3);
-      setTransitData((d) => ({ ...d, [key]: { loading: false, error: null, deps, at: new Date() } }));
-    } catch (e) {
-      setTransitData((d) => ({
-        ...d,
-        [key]: { loading: false, error: e.message || 'Nätverksfel', deps: [], at: null },
-      }));
+    let lastErr = 'Nätverksfel';
+    // Försök upp till 3 ggr med växande paus - proxyn hanterar 429, men detta
+    // fångar tillfälliga hack (t.ex. medan proxyns cache fylls på).
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const res = await fetch(SL_DEPARTURES_URL(cfg.siteId));
+        if (res.ok) {
+          const json = await res.json();
+          const deps = (json.departures || [])
+            .filter(
+              (x) =>
+                x.line?.transport_mode === cfg.mode &&
+                (cfg.directionCode == null || x.direction_code === cfg.directionCode) &&
+                (cfg.lines == null || cfg.lines.includes(x.line?.designation))
+            )
+            .slice(0, 3);
+          setTransitData((d) => ({ ...d, [key]: { loading: false, error: null, deps, at: new Date() } }));
+          return;
+        }
+        lastErr = 'SL svarade ' + res.status;
+        if (res.status !== 429 && res.status < 500) break; // övriga 4xx är inte övergående
+      } catch (e) {
+        lastErr = e.message || 'Nätverksfel';
+      }
+      if (attempt < 2) await new Promise((r) => setTimeout(r, 1200 * (attempt + 1)));
     }
+    setTransitData((d) => ({
+      ...d,
+      [key]: { loading: false, error: lastErr, deps: [], at: null },
+    }));
   }, []);
 
   function toggleTransit(key) {
     if (!TRANSIT_CELLS[key]) return;
     if (transitOpen === key) {
       setTransitOpen(null); // tryck på öppen ruta = stäng
-    } else {
-      setTransitOpen(key);
-      loadDepartures(key);
+      return;
     }
+    setTransitOpen(key);
+    // Återanvänd nyligen hämtad data (< 30 s) istället för ett nytt anrop.
+    const cur = transitData[key];
+    const fresh = cur && cur.at && !cur.error && Date.now() - new Date(cur.at).getTime() < 30000;
+    if (!fresh) loadDepartures(key);
   }
 
   function openPinModal(mode) {
