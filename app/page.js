@@ -273,17 +273,22 @@ export default function Home() {
           setTransitData((d) => ({ ...d, [key]: { loading: false, error: null, deps, at: new Date() } }));
           return;
         }
-        lastErr = 'SL svarade ' + res.status;
+        lastErr =
+          res.status === 429 || res.status === 503
+            ? 'Trafiktätt hos SL just nu – försök igen'
+            : 'SL svarade ' + res.status;
         if (res.status !== 429 && res.status < 500) break; // övriga 4xx är inte övergående
       } catch (e) {
         lastErr = e.message || 'Nätverksfel';
       }
       if (attempt < 2) await new Promise((r) => setTimeout(r, 1200 * (attempt + 1)));
     }
-    setTransitData((d) => ({
-      ...d,
-      [key]: { loading: false, error: lastErr, deps: [], at: null },
-    }));
+    // Behåll ev. tidigare hämtad data - en misslyckad uppdatering ska inte
+    // tömma rutan, bara lägga till en diskret varning.
+    setTransitData((d) => {
+      const prev = d[key] || {};
+      return { ...d, [key]: { ...prev, loading: false, error: lastErr } };
+    });
   }, []);
 
   function toggleTransit(key) {
@@ -721,12 +726,16 @@ export default function Home() {
             ↻
           </button>
         </div>
-        {st.loading && <div className="transit-msg">Hämtar avgångar…</div>}
-        {st.error && <div className="transit-msg err">Kunde inte hämta: {st.error}</div>}
-        {!st.loading && !st.error && deps.length === 0 && (
+        {st.loading && deps.length === 0 && (
+          <div className="transit-msg">Hämtar avgångar…</div>
+        )}
+        {!st.loading && deps.length === 0 && st.error && (
+          <div className="transit-msg err">Kunde inte hämta: {st.error}</div>
+        )}
+        {!st.loading && deps.length === 0 && !st.error && (
           <div className="transit-msg">Inga avgångar de närmaste 90 minuterna.</div>
         )}
-        {!st.loading && !st.error && deps.length > 0 && (
+        {deps.length > 0 && (
           <div className="transit-deps">
             {deps.map((x, i) => {
               const cancelled = x.state === 'CANCELLED';
@@ -765,6 +774,9 @@ export default function Home() {
               );
             })}
           </div>
+        )}
+        {deps.length > 0 && st.error && (
+          <div className="transit-msg err">Kunde inte uppdatera: {st.error}</div>
         )}
         {st.at && !st.loading && (
           <div className="transit-updated">

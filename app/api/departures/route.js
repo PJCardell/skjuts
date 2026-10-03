@@ -42,43 +42,43 @@ export async function GET(request) {
   }
 
   const url = `https://transport.integration.sl.se/v1/sites/${site}/departures?forecast=${forecast}`;
-  try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 8000);
-    const res = await fetch(url, {
-      cache: 'no-store',
-      signal: controller.signal,
-      headers: { Accept: 'application/json', 'User-Agent': 'skjuts-familjeschema/1.0' },
-    });
-    clearTimeout(timer);
-
-    if (res.ok) {
-      const body = await res.text();
-      mem.set(key, { ts: now, body });
-      lastGood.set(key, { ts: now, body });
-      return jsonResponse(body, { 'x-cache': 'MISS' });
-    }
-
-    // SL strypte oss (429) e.d. → servera senaste lyckade svar om vi har det.
-    const stale = lastGood.get(key);
-    if (stale) {
-      return jsonResponse(stale.body, {
-        'x-cache': 'STALE',
-        'x-upstream-status': String(res.status),
+  // Försök några gånger med kort backoff - SL:s 429 är ofta övergående inom
+  // sekunder, så detta fångar ett öppet fönster och fyller cachen.
+  let upstreamStatus = 0;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 7000);
+      const res = await fetch(url, {
+        cache: 'no-store',
+        signal: controller.signal,
+        headers: { Accept: 'application/json', 'User-Agent': 'skjuts-familjeschema/1.0' },
       });
+      clearTimeout(timer);
+      if (res.ok) {
+        const body = await res.text();
+        const ts = Date.now();
+        mem.set(key, { ts, body });
+        lastGood.set(key, { ts, body });
+        return jsonResponse(body, { 'x-cache': 'MISS' });
+      }
+      upstreamStatus = res.status;
+    } catch (e) {
+      // nätverksfel/timeout - behåll upstreamStatus som är
     }
-    return new Response(JSON.stringify({ error: 'SL svarade ' + res.status }), {
-      status: 503,
-      headers: { 'content-type': 'application/json', 'retry-after': '15' },
-    });
-  } catch (e) {
-    const stale = lastGood.get(key);
-    if (stale) {
-      return jsonResponse(stale.body, { 'x-cache': 'STALE', 'x-error': '1' });
-    }
-    return new Response(JSON.stringify({ error: 'Kunde inte nå SL' }), {
-      status: 503,
-      headers: { 'content-type': 'application/json', 'retry-after': '15' },
+    if (attempt < 2) await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
+  }
+
+  // Alla försök misslyckades → servera senaste lyckade svar om vi har det.
+  const stale = lastGood.get(key);
+  if (stale) {
+    return jsonResponse(stale.body, {
+      'x-cache': 'STALE',
+      'x-upstream-status': String(upstreamStatus || 0),
     });
   }
+  return new Response(JSON.stringify({ error: 'SL svarade ' + (upstreamStatus || 'fel') }), {
+    status: 503,
+    headers: { 'content-type': 'application/json', 'retry-after': '15' },
+  });
 }
